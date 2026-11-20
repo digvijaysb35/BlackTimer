@@ -20,6 +20,19 @@ class MainActivity : Activity() {
     private lateinit var seconds: EditText
     private lateinit var status: TextView
     private lateinit var volume: SeekBar
+    private val timerReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val left = intent?.getLongExtra("remaining_ms", -1L) ?: -1L
+            if (left >= 0L) {
+                val total = (left + 999L) / 1000L
+                hours.setText("%02d".format(total / 3600))
+                minutes.setText("%02d".format((total % 3600) / 60))
+                seconds.setText("%02d".format(total % 60))
+                status.text = if (total == 0L) "FINISHED" else "COUNTDOWN RUNNING"
+            }
+        }
+    }
+    private var receiverRegistered = false
     private val green = Color.rgb(184, 243, 107)
     private val muted = Color.rgb(150, 150, 150)
 
@@ -27,6 +40,10 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
         createChannels()
+        val filter = IntentFilter(TimerService.ACTION_TICK)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(timerReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        else registerReceiver(timerReceiver, filter)
+        receiverRegistered = true
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 20, 24, 20); setBackgroundColor(Color.BLACK) }
         val header = TextView(this).apply { text = "BLACK TIMER"; textSize = 14f; letterSpacing = .18f; setTextColor(green); gravity = Gravity.CENTER; setPadding(0, 12, 0, 26) }
         root.addView(header)
@@ -76,6 +93,11 @@ class MainActivity : Activity() {
         root.addView(help)
         root.addView(actionButton("ENABLE VOLUME BUTTON CONTROL", Color.rgb(24,24,24), green) { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) })
         val scroll = ScrollView(this); scroll.addView(root); setContentView(scroll)
+    }
+
+    override fun onDestroy() {
+        if (receiverRegistered) unregisterReceiver(timerReceiver)
+        super.onDestroy()
     }
 
     private fun timeInput(value: String) = EditText(this).apply {
