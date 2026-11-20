@@ -26,13 +26,28 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.BLACKTIMER_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.BLACKTIMER_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BLACKTIMER_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.BLACKTIMER_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || (echo "Missing BLACKTIMER_KEYSTORE_BASE64 repository secret"; exit 1)
+          mkdir -p app/signing
+          echo "$KEYSTORE_BASE64" | base64 --decode > app/signing/blacktimer-release.jks
+          echo "BLACKTIMER_KEYSTORE_PATH=$GITHUB_WORKSPACE/app/signing/blacktimer-release.jks" >> "$GITHUB_ENV"
+          echo "BLACKTIMER_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "BLACKTIMER_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "BLACKTIMER_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Upload APK
+      - name: Build signed release APK
+        run: gradle --no-daemon assembleRelease
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: BlackTimer-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: BlackTimer-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
